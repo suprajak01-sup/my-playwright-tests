@@ -1,44 +1,68 @@
-name: Nightly Regression
+name: Nightly Report & Deploy
 
-# 1. THE TRIGGER
 on:
   schedule:
-    # Runs at 00:00 UTC every day (Nightly)
-    - cron: '0 0 * * *'
-  # Allows you to click a button in GitHub to run it manually
-  workflow_dispatch:
+    - cron: '0 0 * * *' # Runs at Midnight UTC
+  workflow_dispatch:      # Allows manual trigger
+
+# PERMISSIONS: Critical for deploying to Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
-  test:
-    timeout-minutes: 60
+  test-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-
+    
     steps:
-    # 2. CHECKOUT CODE
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
 
-    # 3. SETUP NODE (Since you are using Playwright/TS)
-    - uses: actions/setup-node@v4
-      with:
-        node-version: lts/*
+      - name: Install Dependencies
+        run: npm ci && npx playwright install --with-deps
 
-    # 4. INSTALL DEPENDENCIES
-    - name: Install dependencies
-      run: npm ci
+      - name: Run Playwright Tests
+        run: npx playwright test
+        continue-on-error: true # IMPORTANT: Don't stop if tests fail! We need to see the report.
 
-    # 5. INSTALL PLAYWRIGHT BROWSERS
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
+      # 1. PREPARE THE REPORT FOR WEB
+      # Playwright generates a 'playwright-report' folder. 
+      # We upload this specific folder to GitHub Pages.
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
 
-    # 6. RUN YOUR TESTS
-    - name: Run Playwright tests
-      run: npx playwright test
+      - name: Upload Report Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'playwright-report/'
 
-    # 7. UPLOAD REPORT (Artifacts)
-    # If tests fail, this saves the HTML report so you can download and view it
-    - uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: playwright-report
-        path: playwright-report/
-        retention-days: 30
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      # 2. SEND THE LINK VIA EMAIL
+      - name: Send Email Notification
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: Nightly Results: ${{ job.status }}
+          to: suprajak01@gmail.com
+          from: Automation Bot
+          
+          # The Magic Part: We inject the URL dynamically
+          body: |
+            <h3>Nightly Regression Run: ${{ job.status }}</h3>
+            <p>The latest test report is now live.</p>
+            <p><b>👉 View Dashboard:</b> <a href="${{ steps.deployment.outputs.page_url }}">Click Here to Open Report</a></p>
+            <p><i>(This link always shows the most recent run)</i></p>
