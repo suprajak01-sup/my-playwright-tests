@@ -46,7 +46,7 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      # 2. SEND THE LINK VIA EMAIL
+     # 2. SEND THE LINK VIA EMAIL
       - name: Send Email Notification
         if: always()
         uses: dawidd6/action-send-mail@v3
@@ -56,11 +56,13 @@ jobs:
           secure: true
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: Nightly Results: ${{ job.status }}
-          to: suprajak01@gmail.com
-          from: Automation Bot
           
-          # The Magic Part: We inject the URL dynamically
+          # FIX: Wrap these in quotes to prevent YAML errors
+          subject: "Nightly Results: ${{ job.status }}"
+          to: "suprajak01@gmail.com"
+          from: "Automation Bot <${{ secrets.EMAIL_USERNAME }}>"
+          
+          # FIX: Ensure the HTML below is indented further than 'body:'
           body: |
             <h3>Nightly Regression Run: ${{ job.status }}</h3>
             <p>The latest test report is now live.</p>
