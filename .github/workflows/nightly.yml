@@ -51,20 +51,27 @@ jobs:
         if: always()
         uses: dawidd6/action-send-mail@v3
         with:
+        # CHANGE 1: Use the TLS server address
           server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
+        
+        # CHANGE 2: Use Port 587 (Standard for App Passwords)
+          server_port: 587
+        
+        # CHANGE 3: Set secure to false (Triggers STARTTLS)
+          secure: false
+        
+        # CREDENTIALS
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          
-          # FIX: Wrap these in quotes to prevent YAML errors
+        
+        # CONTENT (Added quotes to prevent YAML errors)
           subject: "Nightly Results: ${{ job.status }}"
           to: "suprajak01@gmail.com"
-          from: "Automation Bot <${{ secrets.EMAIL_USERNAME }}>"
-          
-          # FIX: Ensure the HTML below is indented further than 'body:'
+          from: ${{ secrets.EMAIL_USERNAME }} # Simplify this temporarily
+        
           body: |
-            <h3>Nightly Regression Run: ${{ job.status }}</h3>
+          <h3>Nightly Regression Run: ${{ job.status }}</h3>
+            <p>The nightly run has finished.</p>
             <p>The latest test report is now live.</p>
             <p><b>👉 View Dashboard:</b> <a href="${{ steps.deployment.outputs.page_url }}">Click Here to Open Report</a></p>
             <p><i>(This link always shows the most recent run)</i></p>
