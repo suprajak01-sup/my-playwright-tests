@@ -83,7 +83,8 @@ jobs:
           subject: "Nightly Run Status: ${{ job.status }}"
           to: "suprajak01@gmail.com" # <--- REPLACE THIS WITH YOUR EMAIL
           from: "Automation Bot <${{ secrets.EMAIL_USERNAME }}>"
-          
+
+          content_type: text/html
           # HTML BODY
           body: |
             <h3>Nightly Regression Run: ${{ job.status }}</h3>
