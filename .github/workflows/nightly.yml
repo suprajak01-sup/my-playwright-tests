@@ -1,11 +1,12 @@
-name: Nightly Report & Deploy
+name: Nightly Regression & Report
 
 on:
   schedule:
-    - cron: '0 0 * * *' # Runs at Midnight UTC
-  workflow_dispatch:      # Allows manual trigger
+    # Runs at Midnight UTC every day
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allows manual trigger for testing
 
-# PERMISSIONS: Critical for deploying to Pages
+# Permissions for deploying to GitHub Pages
 permissions:
   contents: read
   pages: write
@@ -13,65 +14,79 @@ permissions:
 
 jobs:
   test-and-deploy:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    
+
     steps:
+      # 1. CHECKOUT CODE
       - uses: actions/checkout@v4
+
+      # 2. SETUP NODE + CACHE (Auto-caches node_modules!)
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: 'npm'
 
-      - name: Install Dependencies
-        run: npm ci && npx playwright install --with-deps
+      # 3. INSTALL DEPENDENCIES (Fast!)
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Run Playwright Tests
+      # 4. CACHE PLAYWRIGHT BROWSERS (Saves ~100s of MB download)
+      - name: Cache Playwright Browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+
+      # 5. INSTALL BROWSERS (Only if cache missed)
+      - name: Install Playwright Browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps
+
+      # 6. RUN TESTS
+      - name: Run Playwright tests
         run: npx playwright test
-        continue-on-error: true # IMPORTANT: Don't stop if tests fail! We need to see the report.
+        continue-on-error: true # Keep going so we can send the report even if tests fail!
 
-      # 1. PREPARE THE REPORT FOR WEB
-      # Playwright generates a 'playwright-report' folder. 
-      # We upload this specific folder to GitHub Pages.
+      # 7. SETUP REPORT FOR GITHUB PAGES
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
       - name: Upload Report Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'playwright-report/'
+          path: playwright-report/
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
 
-     # 2. SEND THE LINK VIA EMAIL
+      # 8. SEND EMAIL NOTIFICATION (Fixed for Gmail 535 Error)
       - name: Send Email Notification
-        if: always()
+        if: always() # Always send, pass or fail
         uses: dawidd6/action-send-mail@v3
         with:
-        # CHANGE 1: Use the TLS server address
+          # MAIL SERVER SETTINGS
           server_address: smtp.gmail.com
-        
-        # CHANGE 2: Use Port 587 (Standard for App Passwords)
-          server_port: 587
-        
-        # CHANGE 3: Set secure to false (Triggers STARTTLS)
-          secure: false
-        
-        # CREDENTIALS
+          server_port: 587      # Use 587 for TLS (Standard for App Passwords)
+          secure: false         # Start unencrypted, then upgrade to TLS
+          
+          # YOUR SECRETS
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-        
-        # CONTENT (Added quotes to prevent YAML errors)
-          subject: "Nightly Results: ${{ job.status }}"
-          to: "suprajak01@gmail.com"
-          from: ${{ secrets.EMAIL_USERNAME }} # Simplify this temporarily
-        
+          
+          # EMAIL CONTENT
+          subject: "Nightly Run Status: ${{ job.status }}"
+          to: "suprajak01@gmail.com" # <--- REPLACE THIS WITH YOUR EMAIL
+          from: "Automation Bot <${{ secrets.EMAIL_USERNAME }}>"
+          
+          # HTML BODY
           body: |
-          <h3>Nightly Regression Run: ${{ job.status }}</h3>
-            <p>The nightly run has finished.</p>
+            <h3>Nightly Regression Run: ${{ job.status }}</h3>
             <p>The latest test report is now live.</p>
             <p><b>👉 View Dashboard:</b> <a href="${{ steps.deployment.outputs.page_url }}">Click Here to Open Report</a></p>
             <p><i>(This link always shows the most recent run)</i></p>
