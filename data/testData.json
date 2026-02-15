@@ -1,0 +1,18 @@
+{
+  "categories": [
+    {
+      "name": "Travel",
+      "count": 11
+    },
+    {
+      "name": "Mystery",
+      "count": 32
+    },
+    {
+      "name": "Historical Fiction",
+      "count": 26
+    }
+  ],
+  "apiEndpoint": "https://jsonplaceholder.typicode.com/posts/1",
+  "expectedAuthor": "Leanne Graham"
+}
